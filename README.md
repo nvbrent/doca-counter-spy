@@ -38,7 +38,7 @@ The `-r` remote-host flag is optional; the default is localhost.
 
 Note that the port number, 50051, is not presently configurable.
 
-Example output, with counters: delta-packets, delta-bytes, total-packets, and total-bytes:
+Example output, with counters: delta-packets, delta-bytes, total-packets, and total-bytes, which updates at 1 Hz:
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Port 0                                                               ┃ Port 1                                                               ┃
