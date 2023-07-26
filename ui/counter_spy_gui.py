@@ -13,7 +13,7 @@ from counter_spy_pb2_grpc import CounterSpyStub
 
 def convert_size(size_bytes, unit='B'):
    if size_bytes == 0:
-       return "0B"
+       return "0" + unit
    size_name = ("", "K", "M", "G", "T", "P", "E", "Z", "Y")
    i = int(math.floor(math.log(size_bytes, 1024)))
    p = math.pow(1024, i)

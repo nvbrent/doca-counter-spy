@@ -20,7 +20,7 @@ DECL_PFUNC(doca_flow_pipe_create);
 DECL_PFUNC(doca_flow_pipe_add_entry);
 DECL_PFUNC(doca_flow_pipe_update_entry);
 DECL_PFUNC(doca_flow_pipe_control_add_entry);
-DECL_PFUNC(doca_flow_pipe_control_update_entry);
+//DECL_PFUNC(doca_flow_pipe_control_update_entry);
 DECL_PFUNC(doca_flow_pipe_lpm_add_entry);
 DECL_PFUNC(doca_flow_pipe_lpm_update_entry);
 DECL_PFUNC(doca_flow_pipe_ordered_list_add_entry);
