@@ -83,6 +83,26 @@ doca_flow_pipe_add_entry(uint16_t pipe_queue,
 }
 
 doca_error_t
+doca_flow_pipe_hash_add_entry(uint16_t pipe_queue,
+			      struct doca_flow_pipe *pipe,
+			      uint32_t entry_index,
+			      const struct doca_flow_actions *actions,
+			      const struct doca_flow_monitor *monitor,
+			      const struct doca_flow_fwd *fwd,
+			      const enum doca_flow_flags_type flags,
+			      void *usr_ctx,
+			      struct doca_flow_pipe_entry **entry)
+{
+    doca_error_t res = (*p_doca_flow_pipe_hash_add_entry)(
+        pipe_queue, pipe, entry_index, actions, monitor, fwd, 
+        flags, usr_ctx, entry);
+	if (res == DOCA_SUCCESS) {
+		counter_spy_entry_added(pipe, monitor, *entry);
+	}
+	return res;
+}
+
+doca_error_t
 doca_flow_pipe_control_add_entry(uint16_t pipe_queue,
 			uint32_t priority,
 			struct doca_flow_pipe *pipe,

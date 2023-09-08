@@ -59,6 +59,7 @@ void load_wrappers(void)
     INIT_PFUNC(doca_flow_pipe_create,            handle_doca_flow);
     INIT_PFUNC(doca_flow_pipe_add_entry,         handle_doca_flow);
     INIT_PFUNC(doca_flow_pipe_control_add_entry, handle_doca_flow);
+    INIT_PFUNC(doca_flow_pipe_hash_add_entry,    handle_doca_flow);
     INIT_PFUNC(doca_flow_shared_resources_bind,  handle_doca_flow);
 }
 
