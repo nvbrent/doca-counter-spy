@@ -55,6 +55,7 @@ def rich_port_stats(port: Port):
         entry_table = Table("Entry", "D.Pkts", "D.Bytes", "T.Pkts", "T.Bytes")
         for entry in pipe.entries:
             add_counter_row(entry_table, entry, hex(entry.id))
+        # add_counter_row(entry_table, pipe.pipe_miss_counter, "[Miss]")
         pipe_tree.add(entry_table)
 
         add_shared_counter_table(port_tree, pipe.name + " Shared Counters", "Sh.Counter", pipe.shared_counters)

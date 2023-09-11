@@ -59,6 +59,8 @@ CounterSpyServiceImpl::getFlowCounts(
             for (auto &shared_iter : pipe_iter.second.pipe_shared_counters) {
                 addStats(shared_iter, pipe_obj->add_shared_counters());
             }
+
+            addStats(pipe_iter.second.pipe_miss_counter, pipe_obj->mutable_pipe_miss_counter());
         }
 
         for (auto &shared_iter : port_stats.port_shared_counters) {

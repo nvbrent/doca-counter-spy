@@ -57,7 +57,7 @@ flow_init(
     struct doca_flow_port *ports[])
 {
 	struct doca_flow_cfg arp_sc_flow_cfg = {
-		.mode_args = "vnf,hws,isolated",
+		.mode_args = "vnf,hws",
 		.queues = dpdk_config->port_config.nb_queues,
         .queue_depth = 128,
 		.resource.nb_counters = 1024,
@@ -91,6 +91,14 @@ flow_init(
         for (uint32_t i=0; i<N_SHARED; i++) {
             shared_counter_id[i] = (port_id+1) * 10 + i;
         }
+
+        struct doca_flow_shared_resource_cfg counter_cfg = {
+            .domain = DOCA_FLOW_PIPE_DOMAIN_DEFAULT,
+        };
+        for (uint32_t i=0; i<N_SHARED; i++) {
+            doca_flow_shared_resource_cfg(DOCA_FLOW_SHARED_RESOURCE_COUNT, shared_counter_id[i], &counter_cfg);
+        }
+
         if (doca_flow_shared_resources_bind(
                 DOCA_FLOW_SHARED_RESOURCE_COUNT, shared_counter_id, N_SHARED, ports[port_id])) {
 			DOCA_LOG_ERR("DOCA Flow port shared-counter-bind failed");
@@ -140,16 +148,27 @@ void create_flows(
 		    DOCA_LOG_ERR("Failed to create Pipe: %s", doca_get_error_string(res));
         }
 
+        // Binding shared_counters to pipes in VNF mode does not appear to work under DOCA 2.2+
+#if 0
         /* bind some shared counters to the first pipe */
         const uint32_t N_SHARED = 3;
         uint32_t shared_counter_id[N_SHARED];
         for (uint32_t i=0; i<N_SHARED; i++) {
             shared_counter_id[i] = (port_id+5) * 10 + i;
         }
+
+        struct doca_flow_shared_resource_cfg counter_cfg = {
+            .domain = DOCA_FLOW_PIPE_DOMAIN_DEFAULT,
+        };
+        for (uint32_t i=0; i<N_SHARED; i++) {
+            doca_flow_shared_resource_cfg(DOCA_FLOW_SHARED_RESOURCE_COUNT, shared_counter_id[i], &counter_cfg);
+        }
+
         if (doca_flow_shared_resources_bind(
                 DOCA_FLOW_SHARED_RESOURCE_COUNT, shared_counter_id, N_SHARED, pipe)) {
             DOCA_LOG_ERR("DOCA Flow port shared-counter-bind failed");
         }
+#endif
 
         for (int j=0; j<5; j++) {
             struct doca_flow_pipe_entry *entry = NULL;
@@ -173,6 +192,9 @@ void create_flows(
         for (int j=0; j<2; j++) {
             struct doca_flow_pipe_entry *entry = NULL;
             res = doca_flow_pipe_add_entry(0, pipe, NULL, NULL, NULL, NULL, 0, NULL, &entry);
+            if (res != DOCA_SUCCESS) {
+                DOCA_LOG_ERR("Failed to create Pipe entry: %s", doca_get_error_string(res));
+            }
         }
 
         struct doca_flow_pipe_cfg cfg_root = {
@@ -191,6 +213,14 @@ void create_flows(
         }
         struct doca_flow_pipe_entry *entry = NULL;
         res = doca_flow_pipe_add_entry(0, pipe, NULL, NULL, NULL, NULL, 0, NULL, &entry);
+        if (res != DOCA_SUCCESS) {
+		    DOCA_LOG_ERR("Failed to create Pipe entry: %s", doca_get_error_string(res));
+        }
+
+        res = doca_flow_entries_process(ports[port_id], 0, 100 * 1000, 8);        
+        if (res != DOCA_SUCCESS) {
+		    DOCA_LOG_ERR("Failed to process Pipe entries: %s", doca_get_error_string(res));
+        }
     }
 }
 

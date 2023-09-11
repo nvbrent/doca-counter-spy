@@ -52,10 +52,19 @@ EntryMon::EntryMon() = default;
 
 EntryMon::EntryMon(
     const struct doca_flow_pipe_entry *entry_ptr, 
-    const struct doca_flow_monitor *entry_mon) : entry_ptr(entry_ptr)
+    const struct doca_flow_monitor *mon_settings) : entry_ptr(entry_ptr)
 { 
-    if (entry_mon) {
-        this->mon = *entry_mon; // copy
+    if (mon_settings) {
+        this->mon = *mon_settings; // copy
+    }
+}
+
+EntryMon::EntryMon(
+    const struct doca_flow_pipe *pipe_ptr,
+    const struct doca_flow_monitor *mon_settings) : pipe_ptr(pipe_ptr)
+{    
+    if (mon_settings) {
+        this->mon = *mon_settings; // copy
     }
 }
 
@@ -72,7 +81,7 @@ EntryMon::query_entry()
         this->stats = this->stats + result.delta;
         result.total = this->stats;
         result.valid = true;
-    } else {
+    } else if (entry_ptr) {
         // Query the total and compute the delta
         auto prev_stats = this->stats;
         auto res = doca_flow_query_entry(
@@ -82,6 +91,20 @@ EntryMon::query_entry()
         if (result.valid) {
             result.delta = result.total - prev_stats;
             this->stats = result.total;
+        }
+    } else if (pipe_ptr && PipeMon::is_counter_active(&this->mon)) {
+        // Query the total and compute the delta
+        auto prev_stats = this->stats;
+        auto res = doca_flow_query_pipe_miss(
+                const_cast<struct doca_flow_pipe*>(pipe_ptr),
+                &result.total);
+        result.valid = res == DOCA_SUCCESS;
+        if (result.valid) {
+            result.delta = result.total - prev_stats;
+            this->stats = result.total;
+            printf("Successfully queried miss counter for pipe %p\n", pipe_ptr);
+        } else {
+            printf("Failed to query miss counter for pipe %p; error=%d\n", pipe_ptr, res);
         }
     }
     return result;
@@ -172,7 +195,8 @@ PipeMon::PipeMon(
     const doca_flow_monitor *pipe_mon) : 
         attr_name(attr.name), 
         pipe(pipe), 
-        attr(attr)
+        attr(attr),
+        miss_entry(pipe, pipe_mon)
 {
     if (pipe_mon) {
         this->mon = *pipe_mon; // copy
@@ -218,6 +242,8 @@ PipeMon::query_entries()
     }
 
     result.pipe_shared_counters = std::move(shared_counters.query_entries());
+
+    result.pipe_miss_counter = miss_entry.query_entry();
 
     return result;
 }

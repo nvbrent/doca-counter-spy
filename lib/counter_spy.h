@@ -30,6 +30,7 @@ struct PipeStats
     PipeMon *pipe_mon;
     FlowStatsList pipe_stats;
     FlowStatsList pipe_shared_counters;
+    EntryFlowStats pipe_miss_counter;
 };
 
 struct PortStats
@@ -46,10 +47,14 @@ public:
     explicit EntryMon(
         const struct doca_flow_pipe_entry *entry_ptr, 
         const struct doca_flow_monitor *entry_mon);
+    explicit EntryMon(
+        const struct doca_flow_pipe *pipe,
+        const struct doca_flow_monitor *mon_settings);
     EntryFlowStats query_entry();
 
 private:
     EntryPtr entry_ptr = nullptr;
+    PipePtr pipe_ptr = nullptr;
     struct doca_flow_monitor mon = {};
     struct doca_flow_query stats = {};
 };
@@ -105,6 +110,7 @@ private:
     struct doca_flow_monitor mon = {};
     std::map<EntryPtr, EntryMon> entries;
     SharedCounterMon shared_counters;
+    EntryMon miss_entry;
 };
 
 class PortMon
