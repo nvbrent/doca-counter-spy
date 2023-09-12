@@ -11,7 +11,7 @@ from time import sleep
 from counter_spy_pb2 import EmptyRequest, Entry, Pipe, Port, PortType, QueryResult
 from counter_spy_pb2_grpc import CounterSpyStub
 
-def convert_size(size_bytes, unit='B'):
+def convert_size(size_bytes, unit='b'):
    if size_bytes == 0:
        return "0" + unit
    size_name = ("", "K", "M", "G", "T", "P", "E", "Z", "Y")
@@ -25,9 +25,9 @@ def add_counter_row(entry_table, entry, id):
         id = id[0:6] + "..." + id[-7:-1]
     entry_table.add_row(id, 
         convert_size(entry.delta_packets, 'P'), 
-        convert_size(entry.delta_bytes),
+        convert_size(entry.delta_bytes * 8), # bytes -> bits
         convert_size(entry.total_packets, 'P'), 
-        convert_size(entry.total_bytes)
+        convert_size(entry.total_bytes * 8) # bytes -> bits
         )
 
 def add_shared_counter_table(
@@ -55,7 +55,8 @@ def rich_port_stats(port: Port):
         entry_table = Table("Entry", "D.Pkts", "D.Bytes", "T.Pkts", "T.Bytes")
         for entry in pipe.entries:
             add_counter_row(entry_table, entry, hex(entry.id))
-        # add_counter_row(entry_table, pipe.pipe_miss_counter, "[Miss]")
+        if pipe.miss_counter_valid:
+            add_counter_row(entry_table, pipe.pipe_miss_counter, "[Miss]")
         pipe_tree.add(entry_table)
 
         add_shared_counter_table(port_tree, pipe.name + " Shared Counters", "Sh.Counter", pipe.shared_counters)

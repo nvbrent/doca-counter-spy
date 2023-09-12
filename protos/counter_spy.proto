@@ -38,6 +38,7 @@ message Pipe
     repeated Entry entries = 2;
     repeated Entry shared_counters = 3;
     Entry pipe_miss_counter = 6;
+    bool miss_counter_valid = 7;
     bool is_root = 4;
     PortType type = 5;
 }

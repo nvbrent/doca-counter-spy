@@ -35,6 +35,9 @@ void counter_spy_shared_counters_bound(
     uint32_t res_array_len, 
     void *bindable_obj);
 
+// globals
+extern bool pipe_miss_counters_enabled;
+
 #ifdef __cplusplus
 }
 #endif

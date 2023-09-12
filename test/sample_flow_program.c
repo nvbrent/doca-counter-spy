@@ -57,10 +57,11 @@ flow_init(
     struct doca_flow_port *ports[])
 {
 	struct doca_flow_cfg arp_sc_flow_cfg = {
-		.mode_args = "vnf,hws",
+        .flags = DOCA_FLOW_CFG_PIPE_MISS_MON,
 		.queues = dpdk_config->port_config.nb_queues,
-        .queue_depth = 128,
 		.resource.nb_counters = 1024,
+		.mode_args = "vnf,hws",
+        .queue_depth = 128,
         .nr_shared_resources = {
             [DOCA_FLOW_SHARED_RESOURCE_COUNT] = 1024,
         },

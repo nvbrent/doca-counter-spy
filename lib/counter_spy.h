@@ -151,3 +151,5 @@ private:
 // globals
 extern std::map<const struct doca_flow_port *const, PortMon> ports;
 
+extern bool pipe_miss_counters_enabled;
+

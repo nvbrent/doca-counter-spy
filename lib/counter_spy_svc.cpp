@@ -52,15 +52,18 @@ CounterSpyServiceImpl::getFlowCounts(
             pipe_obj->set_type(
                 static_cast<doca_flow_counter_spy::PortType>(pipe.pipe_mon->type()));
 
-            for (auto &entry_iter : pipe_iter.second.pipe_stats) {
+            for (auto &entry_iter : pipe.pipe_stats) {
                 addStats(entry_iter, pipe_obj->add_entries());
             }
 
-            for (auto &shared_iter : pipe_iter.second.pipe_shared_counters) {
+            for (auto &shared_iter : pipe.pipe_shared_counters) {
                 addStats(shared_iter, pipe_obj->add_shared_counters());
             }
 
-            addStats(pipe_iter.second.pipe_miss_counter, pipe_obj->mutable_pipe_miss_counter());
+            if (pipe.pipe_miss_counter.valid) {
+                addStats(pipe.pipe_miss_counter, pipe_obj->mutable_pipe_miss_counter());
+                pipe_obj->set_miss_counter_valid(true);
+            }
         }
 
         for (auto &shared_iter : port_stats.port_shared_counters) {

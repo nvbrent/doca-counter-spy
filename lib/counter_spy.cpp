@@ -13,6 +13,8 @@
 
 const std::string COUNTER_SPY_FAKE_STATS_ENV_VAR = "COUNTER_SPY_FAKE_STATS";
 
+bool pipe_miss_counters_enabled = false;
+
 bool fake_stats_enabled = false;
 std::mt19937 rng; // don't bother with non-default seed
 std::normal_distribution<> pkts_random_dist(0, 10000);
@@ -92,7 +94,7 @@ EntryMon::query_entry()
             result.delta = result.total - prev_stats;
             this->stats = result.total;
         }
-    } else if (pipe_ptr && PipeMon::is_counter_active(&this->mon)) {
+    } else if (pipe_ptr && pipe_miss_counters_enabled) {
         // Query the total and compute the delta
         auto prev_stats = this->stats;
         auto res = doca_flow_query_pipe_miss(
@@ -102,7 +104,6 @@ EntryMon::query_entry()
         if (result.valid) {
             result.delta = result.total - prev_stats;
             this->stats = result.total;
-            printf("Successfully queried miss counter for pipe %p\n", pipe_ptr);
         } else {
             printf("Failed to query miss counter for pipe %p; error=%d\n", pipe_ptr, res);
         }

@@ -9,6 +9,10 @@ doca_flow_init(const struct doca_flow_cfg *cfg)
 {
 	doca_error_t res = (*p_doca_flow_init)(cfg);
 	if (res == DOCA_SUCCESS) {
+		if (cfg->flags & DOCA_FLOW_CFG_PIPE_MISS_MON) {
+			pipe_miss_counters_enabled = true;
+		}
+
 		counter_spy_start_service();
 	}
 	return res;
