@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "gdb sample_flow_program",
-            "program": "${workspaceFolder}/build/test/sample_flow_program",
+            "program": "${workspaceFolder}/build/test/doca_flow_shared_counter",
             "request": "launch",
             "type": "cppdbg",
             "args": [

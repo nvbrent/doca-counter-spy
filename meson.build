@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
 #
 # This software product is a proprietary product of NVIDIA CORPORATION &
 # AFFILIATES (the "Company") and all right, title, and interest in and to the
@@ -10,12 +10,17 @@
 # provided with the software product.
 #
 
-project('doca-counter-spy', 'C', 'CPP',
+project('counter-spy', 'C', 'CPP',
 	version: '0.0.1',
 	default_options: [
 		'buildtype=debug',
 		'cpp_std=c++17']
 )
+
+APP_NAME = meson.project_name()
+DOCA_PREFIX = 'doca_'
+apps_common_c_args = ''
+apps_common_cpp_args = ''
 
 add_project_arguments('-D DOCA_ALLOW_EXPERIMENTAL_API', language: ['c','cpp'])
 
@@ -24,9 +29,11 @@ if not dependency_libdpdk.found()
 	error('Please set PKG_CONFIG_PATH to DPDK packages path, for further instructions please refer to the DOCA Reference Applications guide')
 endif
 app_dependencies = [dependency_libdpdk]
-#app_dependencies += dependency('json-c', required : true)
 app_dependencies += dependency('threads', required : true)
-app_dependencies += dependency('doca', required : true)
+app_dependencies += dependency('doca-common', required : true)
+app_dependencies += dependency('doca-argp', required : true)
+app_dependencies += dependency('doca-flow', required : true)
+app_dependencies += dependency('doca-dpdk-bridge', required : true)
 app_dependencies += dependency('grpc', required : true)
 
 protoc          = find_program('protoc', required : true)
@@ -54,7 +61,9 @@ grpc_gen = generator(protoc, \
         '--plugin=protoc-gen-grpc=' + grpc_cpp_plugin.full_path(),
         '@INPUT@'])
 
-common_dir_path = '/opt/mellanox/doca/applications/common/src'
+doca_root_dir = dependency('doca-common').get_variable('prefix', default_value: '/opt/mellanox/doca')
+
+common_dir_path = doca_root_dir + '/applications/common'
 
 proto_files = files('protos/counter_spy.proto')
 

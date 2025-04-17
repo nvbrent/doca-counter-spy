@@ -13,8 +13,6 @@
 
 const std::string COUNTER_SPY_FAKE_STATS_ENV_VAR = "COUNTER_SPY_FAKE_STATS";
 
-bool pipe_miss_counters_enabled = false;
-
 bool fake_stats_enabled = false;
 std::mt19937 rng; // don't bother with non-default seed
 std::normal_distribution<> pkts_random_dist(0, 10000);
@@ -22,31 +20,84 @@ std::normal_distribution<> bytes_random_dist(0, 1000000);
 
 std::map<const struct doca_flow_port *const, PortMon> ports;
 
-struct doca_flow_query fake_stats()
+// Used for looking up port_id, etc.
+struct port_cfg {
+	uint16_t port_id;
+	doca_flow_port *port;
+};
+std::map<const doca_flow_port_cfg *, port_cfg> port_cfg_map;
+
+void counter_spy_set_port_cfg_port_id(const doca_flow_port_cfg *cfg, uint16_t port_id)
 {
-    struct doca_flow_query stats;
-    stats.total_bytes = (uint64_t)std::abs(bytes_random_dist(rng));
-    stats.total_pkts  = (uint64_t)std::abs(pkts_random_dist(rng));
+	port_cfg_map[cfg].port_id = port_id;
+}
+void counter_spy_set_port_cfg_port(const doca_flow_port_cfg *cfg, doca_flow_port *port)
+{
+	port_cfg_map[cfg].port = port;
+}
+
+// Used for looking up pipe_id, name, etc.
+struct pipe_cfg {
+	std::string name;
+	bool is_root;
+	bool miss_counter_enabled;
+	doca_flow_pipe *pipe;
+};
+std::map<const doca_flow_pipe_cfg *, pipe_cfg> pipe_cfg_map;
+
+void counter_spy_set_pipe_cfg_name(
+    const struct doca_flow_pipe_cfg *cfg, 
+    const char *name)
+{
+    pipe_cfg_map[cfg].name = name;
+}
+
+void counter_spy_set_pipe_cfg_is_root(
+    const struct doca_flow_pipe_cfg *cfg, 
+    bool is_root)
+{
+    pipe_cfg_map[cfg].is_root = is_root;
+}
+
+void counter_spy_set_pipe_cfg_miss_counter(
+    const struct doca_flow_pipe_cfg *cfg, 
+    bool miss_counter_enabled)
+{
+    pipe_cfg_map[cfg].miss_counter_enabled = miss_counter_enabled;
+}
+
+void counter_spy_set_pipe_cfg_pipe(
+    const struct doca_flow_pipe_cfg *cfg, 
+    struct doca_flow_pipe *pipe)
+{
+    pipe_cfg_map[cfg].pipe = pipe;
+}
+
+struct doca_flow_resource_query fake_stats()
+{
+    struct doca_flow_resource_query stats;
+    stats.counter.total_bytes = (uint64_t)std::abs(bytes_random_dist(rng));
+    stats.counter.total_pkts  = (uint64_t)std::abs(pkts_random_dist(rng));
     return stats;
 }
 
-struct doca_flow_query operator+(
-    const struct doca_flow_query &a, 
-    const struct doca_flow_query &b)
+struct doca_flow_resource_query operator+(
+    const struct doca_flow_resource_query &a, 
+    const struct doca_flow_resource_query &b)
 {
-    struct doca_flow_query c;
-    c.total_bytes = a.total_bytes + b.total_bytes;
-    c.total_pkts = a.total_pkts + b.total_pkts;
+    struct doca_flow_resource_query c;
+    c.counter.total_bytes = a.counter.total_bytes + b.counter.total_bytes;
+    c.counter.total_pkts = a.counter.total_pkts + b.counter.total_pkts;
     return c;
 }
 
-struct doca_flow_query operator-(
-    const struct doca_flow_query &a, 
-    const struct doca_flow_query &b)
+struct doca_flow_resource_query operator-(
+    const struct doca_flow_resource_query &a, 
+    const struct doca_flow_resource_query &b)
 {
-    struct doca_flow_query c;
-    c.total_bytes = a.total_bytes - b.total_bytes;
-    c.total_pkts = a.total_pkts - b.total_pkts;
+    struct doca_flow_resource_query c;
+    c.counter.total_bytes = a.counter.total_bytes - b.counter.total_bytes;
+    c.counter.total_pkts = a.counter.total_pkts - b.counter.total_pkts;
     return c;
 }
 
@@ -86,7 +137,7 @@ EntryMon::query_entry()
     } else if (entry_ptr) {
         // Query the total and compute the delta
         auto prev_stats = this->stats;
-        auto res = doca_flow_query_entry(
+        auto res = doca_flow_resource_query_entry(
             const_cast<struct doca_flow_pipe_entry *>(entry_ptr), 
             &result.total);
         result.valid = res == DOCA_SUCCESS;
@@ -94,10 +145,10 @@ EntryMon::query_entry()
             result.delta = result.total - prev_stats;
             this->stats = result.total;
         }
-    } else if (pipe_ptr && pipe_miss_counters_enabled) {
+    } else if (pipe_ptr) {
         // Query the total and compute the delta
         auto prev_stats = this->stats;
-        auto res = doca_flow_query_pipe_miss(
+        auto res = doca_flow_resource_query_pipe_miss(
                 const_cast<struct doca_flow_pipe*>(pipe_ptr),
                 &result.total);
         result.valid = res == DOCA_SUCCESS;
@@ -149,11 +200,11 @@ FlowStatsList SharedCounterMon::query_entries()
     }
 
     // Prepare a vector for the output of the batch query:
-    std::vector<doca_flow_shared_resource_result> query_results_array(n_shared);
+    std::vector<doca_flow_resource_query> query_results_array(n_shared);
 
     if (!fake_stats_enabled) {
         auto res = doca_flow_shared_resources_query(
-            DOCA_FLOW_SHARED_RESOURCE_COUNT, counter_ids.data(),
+            DOCA_FLOW_SHARED_RESOURCE_COUNTER, counter_ids.data(),
             query_results_array.data(), n_shared);
 
         if (res != DOCA_SUCCESS) {
@@ -176,8 +227,10 @@ FlowStatsList SharedCounterMon::query_entries()
             result_stat.total = shared_ctr.total;
         } else {
             // Update our internal state
-            shared_ctr.total = query_results_array[i].counter;
-            shared_ctr.delta = shared_ctr.total - prev_ctr.total;
+            shared_ctr.total.counter.total_bytes = query_results_array[i].counter.total_bytes;
+            shared_ctr.total.counter.total_pkts = query_results_array[i].counter.total_pkts;
+            shared_ctr.delta.counter.total_bytes = shared_ctr.total.counter.total_bytes - prev_ctr.total.counter.total_bytes;
+            shared_ctr.delta.counter.total_pkts = shared_ctr.total.counter.total_pkts - prev_ctr.total.counter.total_pkts;
 
             // Update the output message
             result_stat.total = shared_ctr.total;
@@ -192,39 +245,41 @@ PipeMon::PipeMon() = default;
 
 PipeMon::PipeMon(
     const doca_flow_pipe *pipe,
-    const doca_flow_pipe_attr &attr,
+    std::string name,
+    doca_flow_pipe_type type,
+    bool is_root,
+    bool miss_counter_enabled,
     const doca_flow_monitor *pipe_mon) : 
-        attr_name(attr.name), 
-        pipe(pipe), 
-        attr(attr),
-        miss_entry(pipe, pipe_mon)
+        name_(name),
+        type_(type),
+        is_root_(is_root),
+        miss_counter_enabled_(miss_counter_enabled),
+        pipe_(pipe), 
+        miss_entry_(pipe, pipe_mon)
 {
     if (pipe_mon) {
-        this->mon = *pipe_mon; // copy
+        mon_ = *pipe_mon; // copy
     }
 }
 
 std::string PipeMon::name() const
 {
-    return attr_name;
+    return name_;
 }
 
 bool PipeMon::is_root() const
 {
-    return attr.is_root;
+    return is_root_;
 }
 
 doca_flow_pipe_type PipeMon::type() const
 {
-    return attr.type;
+    return type_;
 }
 
 bool PipeMon::is_counter_active(const struct doca_flow_monitor *mon)
 {
-	return mon && (
-        (mon->flags & DOCA_FLOW_MONITOR_COUNT) || 
-        mon->shared_counter_id
-    );
+	return mon && mon->counter_type != DOCA_FLOW_RESOURCE_TYPE_NONE;
 }
 
 PipeStats
@@ -232,19 +287,19 @@ PipeMon::query_entries()
 {
     PipeStats result;
     result.pipe_mon = this;
-    result.pipe_stats.reserve(entries.size());
+    result.pipe_stats.reserve(entries_.size());
 
     //printf("Query: Pipe %s\n", attr_name.c_str());
-    for (auto &entry : entries) {
+    for (auto &entry : entries_) {
         auto stats = entry.second.query_entry();
         if (stats.valid) {
             result.pipe_stats.emplace_back(stats);
         }
     }
 
-    result.pipe_shared_counters = std::move(shared_counters.query_entries());
+    result.pipe_shared_counters = std::move(shared_counters_.query_entries());
 
-    result.pipe_miss_counter = miss_entry.query_entry();
+    result.pipe_miss_counter = miss_entry_.query_entry();
 
     return result;
 }
@@ -253,7 +308,7 @@ void PipeMon::shared_counters_bound(
     uint32_t *res_array,
     uint32_t res_array_len)
 {
-    shared_counters.shared_counters_bound(res_array, res_array_len);
+    shared_counters_.shared_counters_bound(res_array, res_array_len);
 }
 
 void PipeMon::entry_added(
@@ -262,19 +317,21 @@ void PipeMon::entry_added(
     const struct doca_flow_pipe_entry *entry)
 {
     if (is_counter_active(entry_monitor) ||
-        is_counter_active(&this->mon)) 
+        is_counter_active(&mon_)) 
     {
-        entries[entry] = EntryMon(entry, entry_monitor);
+        entries_[entry] = EntryMon(entry, entry_monitor);
     }
 }
 
-PortMon::PortMon() = default;
+PortMon::PortMon() : port_id_(0)
+{
+}
 
 PortMon::PortMon(
     uint16_t port_id,
     const struct doca_flow_port *port) :
-        _port_id(port_id),
-        port(port)
+        port_id_(port_id),
+        port_(port)
 {
 }
 
@@ -285,30 +342,30 @@ PortMon::~PortMon()
 
 void PortMon::port_flushed()
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    pipes.clear();
+    std::lock_guard<std::mutex> lock(mutex_);
+    pipes_.clear();
 }
 
 uint16_t PortMon::port_id() const
 {
-    return _port_id;
+    return port_id_;
 }
 
 PortStats
 PortMon::query()
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::lock_guard<std::mutex> lock(mutex_);
     //printf("Query: Port %d\n", _port_id);
     PortStats stats;
     stats.port_mon = this;
-    for (auto &pipe : pipes) {
+    for (auto &pipe : pipes_) {
         auto entries = pipe.second.query_entries();
         if (!entries.pipe_stats.empty()) {
             stats.port_stats[pipe.second.name()] = std::move(entries);
         }
     }
 
-    stats.port_shared_counters = std::move(shared_counters.query_entries());
+    stats.port_shared_counters = std::move(shared_counters_.query_entries());
 
     return stats;
 }
@@ -317,35 +374,41 @@ void PortMon::shared_counters_bound(
     uint32_t *res_array,
     uint32_t res_array_len)
 {
-    shared_counters.shared_counters_bound(res_array, res_array_len);
+    shared_counters_.shared_counters_bound(res_array, res_array_len);
 }
 
 void PortMon::pipe_created(
     const struct doca_flow_pipe_cfg *cfg, 
     const doca_flow_pipe *pipe)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    pipes[pipe] = PipeMon(pipe, cfg->attr, cfg->monitor);
+    std::lock_guard<std::mutex> lock(mutex_);
+    // TODO: get pipe_cfg attrs, monitor from cfg
+    // pipes[pipe] = PipeMon(pipe, cfg->attr, cfg->monitor);
 }
 
 std::mutex& PortMon::get_mutex() const
 {
-    return mutex;
+    return mutex_;
 }
 
 PipeMon *PortMon::find_pipe(const doca_flow_pipe *pipe)
 {
-    auto pipe_counters_iter = pipes.find(pipe);
-    return (pipe_counters_iter == pipes.end()) ? nullptr : &pipe_counters_iter->second;
+    auto pipe_counters_iter = pipes_.find(pipe);
+    return (pipe_counters_iter == pipes_.end()) ? nullptr : &pipe_counters_iter->second;
 }
 
 void counter_spy_port_started(
-    uint16_t port_id,
     const struct doca_flow_port * port)
 {
-    ports.emplace(std::piecewise_construct,
-        std::forward_as_tuple(port),
-        std::forward_as_tuple(port_id, port));
+    for (auto &port_cfg_iter : port_cfg_map) {
+        if (port_cfg_iter.second.port == port) {
+            uint16_t port_id = port_cfg_iter.second.port_id;
+            ports.emplace(std::piecewise_construct,
+                std::forward_as_tuple(port),
+                std::forward_as_tuple(port_id, port));
+            return;
+        }
+    }
 }
 
 void counter_spy_port_stopped(
@@ -364,7 +427,8 @@ void counter_spy_pipe_created(
     const struct doca_flow_pipe_cfg *cfg, 
     const doca_flow_pipe *pipe)
 {
-    auto &port_counters = ports[cfg->port];
+    doca_flow_port *port = nullptr; // TODO: get port from cfg
+    auto &port_counters = ports[port];
     port_counters.pipe_created(cfg, pipe);
 }
 

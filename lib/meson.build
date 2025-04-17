@@ -19,7 +19,7 @@ app_srcs = [
 app_inc_dirs = [include_directories(common_dir_path)]
 app_inc_dirs += spy_rpc_lib.private_dir_include()
 
-spy_lib = shared_library(meson.project_name(), 
+spy_lib = shared_library('doca-' + meson.project_name(), 
     app_srcs,
 	dependencies : app_dependencies,
     link_with: spy_rpc_lib,

@@ -20,8 +20,8 @@ struct EntryFlowStats
     bool valid = false;
     EntryPtr entry_ptr = nullptr;
     uint32_t shared_counter_id = 0;
-    struct doca_flow_query total = {};
-    struct doca_flow_query delta = {};
+    struct doca_flow_resource_query total = {};
+    struct doca_flow_resource_query delta = {};
 };
 using FlowStatsList = std::vector<EntryFlowStats>;
 
@@ -56,7 +56,7 @@ private:
     EntryPtr entry_ptr = nullptr;
     PipePtr pipe_ptr = nullptr;
     struct doca_flow_monitor mon = {};
-    struct doca_flow_query stats = {};
+    struct doca_flow_resource_query stats = {};
 };
 
 class SharedCounterMon
@@ -82,7 +82,10 @@ public:
     explicit PipeMon();
     explicit PipeMon(
         const doca_flow_pipe *pipe,
-        const doca_flow_pipe_attr &attr,
+        std::string name,
+        doca_flow_pipe_type type,
+        bool is_root,
+        bool miss_counter_enabled,
         const doca_flow_monitor *mon);
 
     PipeStats query_entries();
@@ -104,13 +107,15 @@ public:
         const struct doca_flow_monitor *mon);
 
 private:
-    std::string attr_name;
-    PipePtr pipe = nullptr;
-    struct doca_flow_pipe_attr attr = {};
-    struct doca_flow_monitor mon = {};
-    std::map<EntryPtr, EntryMon> entries;
-    SharedCounterMon shared_counters;
-    EntryMon miss_entry;
+    std::string name_;
+    doca_flow_pipe_type type_;
+    bool is_root_;
+    bool miss_counter_enabled_;
+    PipePtr pipe_ = nullptr;
+    struct doca_flow_monitor mon_ = {};
+    std::map<EntryPtr, EntryMon> entries_;
+    SharedCounterMon shared_counters_;
+    EntryMon miss_entry_;
 };
 
 class PortMon
@@ -141,15 +146,12 @@ public:
     std::mutex& get_mutex() const;
 
 private:
-    uint16_t _port_id;
-    const struct doca_flow_port *port;
-    std::map<const PipePtr, PipeMon> pipes;
-    SharedCounterMon shared_counters;
-    mutable std::mutex mutex;
+    uint16_t port_id_;
+    const struct doca_flow_port *port_;
+    std::map<const PipePtr, PipeMon> pipes_;
+    SharedCounterMon shared_counters_;
+    mutable std::mutex mutex_;
 };
 
 // globals
 extern std::map<const struct doca_flow_port *const, PortMon> ports;
-
-extern bool pipe_miss_counters_enabled;
-

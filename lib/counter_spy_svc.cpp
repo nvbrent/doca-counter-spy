@@ -26,10 +26,10 @@ void CounterSpyServiceImpl::addStats(
     } else if (entry_stats.shared_counter_id) {
         entry_obj->set_shared_counter_id(entry_stats.shared_counter_id);
     }
-    entry_obj->set_total_bytes(entry_stats.total.total_bytes);
-    entry_obj->set_total_packets(entry_stats.total.total_pkts);
-    entry_obj->set_delta_bytes(entry_stats.delta.total_bytes);
-    entry_obj->set_delta_packets(entry_stats.delta.total_pkts);
+    entry_obj->set_total_bytes(entry_stats.total.counter.total_bytes);
+    entry_obj->set_total_packets(entry_stats.total.counter.total_pkts);
+    entry_obj->set_delta_bytes(entry_stats.delta.counter.total_bytes);
+    entry_obj->set_delta_packets(entry_stats.delta.counter.total_pkts);
 }
 
 ::grpc::Status 
